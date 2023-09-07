@@ -6,28 +6,28 @@
   hosts: "{{ target }}"
   become: yes
   tasks:
-      - name: Check Permission on files 
+      - name: Check Permission  
         shell: |
             rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
-        when: wrong_perm_files.stdout|length > 0
-        register: wrong_perm_files
+        when: perm_output.stdout|length > 0
+        register: perm_output
 
-      - name: Display Files with incorrect Permissions
+      - name: Display output 
         debug:
-          msg: "{{ wrong_perm_files.stdout_lines }}"
-          #var: wrong_perm_files
-        when: wrong_perm_files.stdout|length > 0
+          msg: "{{ perm_output.stdout_lines }}"
+          #var: perm_output
+        when: perm_output.stdout|length > 0
 
-      - name: Fix Permission on files
+      - name: Remediate
         shell: >
                 ( rpm --setugids {{ item }}; rpm --setperms {{ item }} )
                 2>&1 1>&2 | grep -v ': No such file or directory$'
         args:
             warn: false
         register: Perm_fixed
-        failed_when: wrong_perm_files.stdout|length > 0
+        failed_when: perm_output.stdout|length > 0
         ignore_errors: true
-        with_items: "{{ wrong_perm_files.stdout_lines }}"
+        with_items: "{{ perm_output.stdout_lines }}"
 
       - name: Display error during remediation
         debug:
