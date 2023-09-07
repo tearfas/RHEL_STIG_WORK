@@ -1,0 +1,36 @@
+---
+- name: STIG V-204392
+  hosts: "{{ target }}"
+  become: yes
+  tasks:
+      - name: Check Permission on files 
+        shell: |
+            rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
+        when: existing_files_perm.stdout|length > 0
+        register: existing_files_perm
+
+      - name: Display Current Permission
+        debug:
+          msg: "{{ existing_files_perm.stdout_lines }}"
+          #var: existing_files_perm
+        when: existing_files_perm.stdout|length > 0
+
+      - name: Fix Permission on files
+        shell: >
+                ( rpm --setugids {{ item }}; rpm --setperms {{ item }} )
+                2>&1 1>&2 | grep -v ': No such file or directory$'
+        args:
+            warn: false
+        register: Perm_fixed
+        failed_when: existing_files_perm.stdout|length > 0
+        ignore_errors: true
+        with_items: "{{ existing_files_perm.stdout_lines }}"
+
+      - name: Display error during remediation
+        debug:
+            msg: "{{ item.stdout_lines }}"
+        changed_when: true
+        with_items: "{{ Perm_fixed.results }}"
+        when:
+            - Perm_fixed is changed
+            - item is failed
