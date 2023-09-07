@@ -1,8 +1,8 @@
 ---
 ############################# USAGE   ##########################
-###    ansible-playbook V-204392.yml -e target=all -kK       ###
+####    ansible-playbook V-204392.yml -e target=all -kK      ###
 ################################################################
-- name: STIG V-204392
+- name: Check and Remediate STIG Finding V-204392
   hosts: "{{ target }}"
   become: yes
   tasks:
