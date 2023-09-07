@@ -1,4 +1,7 @@
 ---
+############################# USAGE   ##########################
+###    ansible-playbook V-204392.yml -e target=all -kK       ###
+################################################################
 - name: STIG V-204392
   hosts: "{{ target }}"
   become: yes
@@ -6,14 +9,14 @@
       - name: Check Permission on files 
         shell: |
             rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
-        when: existing_files_perm.stdout|length > 0
-        register: existing_files_perm
+        when: wrong_perm_files.stdout|length > 0
+        register: wrong_perm_files
 
-      - name: Display Current Permission
+      - name: Display Files with incorrect Permissions
         debug:
-          msg: "{{ existing_files_perm.stdout_lines }}"
-          #var: existing_files_perm
-        when: existing_files_perm.stdout|length > 0
+          msg: "{{ wrong_perm_files.stdout_lines }}"
+          #var: wrong_perm_files
+        when: wrong_perm_files.stdout|length > 0
 
       - name: Fix Permission on files
         shell: >
@@ -22,9 +25,9 @@
         args:
             warn: false
         register: Perm_fixed
-        failed_when: existing_files_perm.stdout|length > 0
+        failed_when: wrong_perm_files.stdout|length > 0
         ignore_errors: true
-        with_items: "{{ existing_files_perm.stdout_lines }}"
+        with_items: "{{ wrong_perm_files.stdout_lines }}"
 
       - name: Display error during remediation
         debug:
@@ -33,4 +36,4 @@
         with_items: "{{ Perm_fixed.results }}"
         when:
             - Perm_fixed is changed
-            - item is failed
+            - item is failed 
