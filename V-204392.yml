@@ -6,6 +6,8 @@
   hosts: "{{ target }}"
   become: yes
   tasks:
+
+  ttouch 
       - name: Check Permission  
         shell: |
             rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
