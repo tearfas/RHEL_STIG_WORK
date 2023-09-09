@@ -1,14 +1,17 @@
-##for i in `cat python.txt`; do host $i; done | awk '{print $5}' | sed 's/local./local/' | sort > python3-vul_systems
-
-
---- 
 ############################# USAGE   ############################
 ####    ansible-playbook V-204392.yml -e target=all -kK        ###
 ##################################################################
+---
 - name: Check and Remediate STIG Finding V-204392
   hosts: "{{ target }}"
   become: yes
   tasks:
+      - name: ensure an empty file exist 
+        file: 
+          path: /tmp/files_perm.txt
+          state: touch 
+        delegate_to: localhost
+
       - name: Generate list of files
         shell: >
            for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`;do for j in `rpm -qf $i`;do rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i;done;done | awk '{print $1}'
@@ -20,16 +23,16 @@
       - name: ls -l 
         shell: ls -l {{ item }}
         loop: "{{ files.stdout_lines }}"
-        register: brij
+        register: perm_out
 
       - name: Display perms 
         debug: 
-          msg: "{{ brij.results | map(attribute='stdout') }}"
+          msg: "{{ perm_out.results | map(attribute='stdout') }}"
 
       - name: Print output to file
         copy:
-          content: "{{ brij.results | map(attribute='stdout') }}"
-          dest: output-file
+          content: "{{ perm_out.results | map(attribute='stdout') }}"
+          dest: /tmp/files_perm.txt
         delegate_to: localhost
       
 #      - name: check Perm file list
