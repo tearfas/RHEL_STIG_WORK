@@ -1,0 +1,68 @@
+##for i in `cat python.txt`; do host $i; done | awk '{print $5}' | sed 's/local./local/' | sort > python3-vul_systems
+
+
+--- 
+############################# USAGE   ############################
+####    ansible-playbook V-204392.yml -e target=all -kK        ###
+##################################################################
+- name: Check and Remediate STIG Finding V-204392
+  hosts: "{{ target }}"
+  become: yes
+  tasks:
+      - name: Generate list of files
+        shell: >
+           for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`;do for j in `rpm -qf $i`;do rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i;done;done | awk '{print $1}'
+        register: files
+      
+      - debug:
+         var: files.stdout_lines
+
+      - name: ls -l 
+        shell: ls -l {{ item }}
+        loop: "{{ files.stdout_lines }}"
+        register: brij
+
+      - name: Display perms 
+        debug: 
+          msg: "{{ brij.results | map(attribute='stdout') }}"
+
+      - name: Print output to file
+        copy:
+          content: "{{ brij.results | map(attribute='stdout') }}"
+          dest: output-file
+        delegate_to: localhost
+      
+#      - name: check Perm file list
+#
+#
+#      - name: Check Permission
+#        shell: |
+#            rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
+#        when: perm_output.stdout|length > 0
+#        register: perm_output
+
+#    - name: Display output
+#        debug:
+#          msg: "{{ perm_output.stdout_lines }}"
+#          #var: perm_output
+#        when: perm_output.stdout|length > 0
+#
+#     - name: Remediate
+#        shell: >
+#                ( rpm --setugids {{ item }}; rpm --setperms {{ item }} )
+#                2>&1 1>&2 | grep -v ': No such file or directory$'
+#        args:
+#          warn: false
+#        register: Perm_fixed
+#        failed_when: perm_output.stdout|length > 0
+#        ignore_errors: true
+#        with_items: "{{ perm_output.stdout_lines }}"
+#
+#      - name: Display error during remediation
+#        debug:
+#            msg: "{{ item.stdout_lines }}"
+#        changed_when: true
+#        with_items: "{{ Perm_fixed.results }}"
+#        when:
+#            - Perm_fixed is changed
+#            - item is failed
