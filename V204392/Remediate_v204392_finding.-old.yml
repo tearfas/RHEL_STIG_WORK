@@ -23,43 +23,46 @@
       - name: ls -l 
         shell: ls -l {{ item }}
         loop: "{{ files.stdout_lines }}"
-        register: perm_out
+        register: perm_list
 
       - name: Display perms 
         debug: 
-          msg: "{{ perm_out.results | map(attribute='stdout') }}"
+          msg: "{{ perm_list.results | map(attribute='stdout') }}"
 
-      - name: Print output to file
+      - name: Print output to a file
         copy:
-          content: "{{ perm_out.results | map(attribute='stdout') }}"
+          content: "{{ perm_list.results | map(attribute='stdout' ) | join('\n')  }}"
           dest: /tmp/files_perm.txt
         delegate_to: localhost
       
-#      - name: check Perm file list
-#
-#
-#      - name: Check Permission
-#        shell: |
-#            rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
-#        when: perm_output.stdout|length > 0
-#        register: perm_output
+      - name: Get packages with incorrect file permissions or ownership
+        shell: |
+            rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
+        #when: pkg_list.stdout|length > 0
+        register: pkg_list
 
-#    - name: Display output
-#        debug:
-#          msg: "{{ perm_output.stdout_lines }}"
-#          #var: perm_output
-#        when: perm_output.stdout|length > 0
+      - name: Display output
+        debug:
+          msg: "{{ pkg_list.stdout_lines }}"
+#        when: pkg_list.stdout|length > 0
 #
-#     - name: Remediate
+#      - name: Remediate
 #        shell: >
-#                ( rpm --setugids {{ item }}; rpm --setperms {{ item }} )
+#                ( rpm --setugids {{ item }} && rpm --setperms {{ item }} )
 #                2>&1 1>&2 | grep -v ': No such file or directory$'
 #        args:
 #          warn: false
 #        register: Perm_fixed
-#        failed_when: perm_output.stdout|length > 0
+#        failed_when: pkg_list.stdout|length > 0
 #        ignore_errors: true
-#        with_items: "{{ perm_output.stdout_lines }}"
+#        loop: "{{ pkg_list.stdout_lines }}"
+
+      - name: Reset file permissions/ownership to vendor values
+        shell: "rpm {{ item[0] }} {{ item[1] }}" 
+        changed_when: false
+        with_nested:
+           - ['--setperms', '--setugids']
+           - "{{ pkg_list.stdout_lines | default([]) }}"
 #
 #      - name: Display error during remediation
 #        debug:
