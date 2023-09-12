@@ -6,7 +6,7 @@
   hosts: "{{ target }}"
   become: yes
   tasks:
-      - name: ensure an empty file exist 
+      - name: Ensure an empty file exist 
         file: 
           path: /tmp/files_perm.txt
           state: touch 
@@ -14,13 +14,14 @@
 
       - name: Generate list of files
         shell: >
-           for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`;do for j in `rpm -qf $i`;do rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i;done;done | awk '{print $1}'
+          for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`;do for j in `rpm -qf $i`;do rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i;done;done | awk '{print $1}'
         register: files
       
-      - debug:
-         var: files.stdout_lines
+      - name: Display Files
+        debug:
+          var: files.stdout_lines
 
-      - name: ls -l 
+      - name: Check the permission on each file
         shell: ls -l {{ item }}
         loop: "{{ files.stdout_lines }}"
         register: perm_list
@@ -29,7 +30,7 @@
         debug: 
           msg: "{{ perm_list.results | map(attribute='stdout') }}"
 
-      - name: Print output to a file
+      - name: Save File Permissions
         copy:
           content: "{{ perm_list.results | map(attribute='stdout' ) | join('\n')  }}"
           dest: /tmp/files_perm.txt
@@ -37,7 +38,7 @@
       
       - name: Get packages with incorrect file permissions or ownership
         shell: |
-            rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
+          rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
         register: pkg_list
 
       - name: Display output
@@ -48,14 +49,14 @@
         shell: "rpm {{ item[0] }} {{ item[1] }}" 
         changed_when: false
         with_nested:
-           - ['--setperms', '--setugids']
-           - "{{ pkg_list.stdout_lines | default([]) }}"
+          - ['--setperms', '--setugids']
+          - "{{ pkg_list.stdout_lines | default([]) }}"
 
       - name: Display error during remediation
         debug:
-            msg: "{{ item.stdout_lines }}"
+          msg: "{{ item.stdout_lines }}"
         changed_when: true
         with_items: "{{ Perm_fixed.results }}"
         when:
-            - Perm_fixed is changed
-            - item is failed
+          - Perm_fixed is changed
+          - item is failed
