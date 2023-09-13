@@ -1,41 +1,49 @@
----
-############################# USAGE   ##########################
-####    ansible-playbook V-204392.yml -e target=all -kK      ###
-################################################################
-- name: Check and Remediate STIG Finding V-204392
-  hosts: "{{ target }}"
-  become: yes
-  tasks:
+[root@el8-ansible-server ~]# for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`;do for j in `rpm -qf $i`;do rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i;done;done 
+/var/lib/plymouth/boot-duration 0100000 root root
+[root@el8-ansible-server ~]# 
+[root@el8-ansible-server ~]# 
+[root@el8-ansible-server ~]# 
+[root@el8-ansible-server ~]# 
+[root@el8-ansible-server ~]# rpm -qf /var/lib/plymouth/boot-duration
+plymouth-0.9.4-11.20200615git1e36e30.el8.x86_64
+[root@el8-ansible-server ~]# 
+[root@el8-ansible-server ~]# 
+[root@el8-ansible-server ~]# ls -l /var/lib/plymouth/boot-duration
+-rw-r--r--. 1 root root 1814 Sep  8 22:44 /var/lib/plymouth/boot-duration
+[root@el8-ansible-server ~]# rpm --setperm plymouth-0.9.4-11.20200615git1e36e30.el8.x86_64
+rpm: --setperm: unknown option
+[root@el8-ansible-server ~]# rpm --setperms plymouth-0.9.4-11.20200615git1e36e30.el8.x86_64
+[root@el8-ansible-server ~]# 
+[root@el8-ansible-server ~]# 
+[root@el8-ansible-server ~]# rpm --setugids plymouth-0.9.4-11.20200615git1e36e30.el8.x86_64
+[root@el8-ansible-server ~]# 
+[root@el8-ansible-server ~]# ls -l /var/lib/plymouth/boot-duration
+----------. 1 root root 1814 Sep  8 22:44 /var/lib/plymouth/boot-duration
+[root@el8-ansible-server ~]# for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`;do for j in `rpm -qf $i`;do rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i;done;done 
+[root@el8-ansible-server ~]# 
 
-  ttouch 
-      - name: Check Permission  
-        shell: |
-            rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
-        when: perm_output.stdout|length > 0
-        register: perm_output
 
-      - name: Display output 
-        debug:
-          msg: "{{ perm_output.stdout_lines }}"
-          #var: perm_output
-        when: perm_output.stdout|length > 0
+- name: Enable FIPS mode
+  command: /usr/bin/fips-mode-setup --enable
+  when:
+  - DISA_STIG_RHEL_08_010020 | bool
+  - enable_fips_mode | bool
+  - high_severity | bool
+  - medium_complexity | bool
+  - medium_disruption | bool
+  - reboot_required | bool
+  - restrict_strategy | bool
+  - ( ansible_virtualization_type not in ["docker", "lxc", "openvz", "podman", "container"] and not ( lookup("env", "container")
+    == "bwrap-osbuild" ) )
+  - ansible_virtualization_type not in ["docker", "lxc", "openvz", "podman", "container"]
+  - is_fips_enabled.stdout.find('FIPS mode is enabled.') == -1
 
-      - name: Remediate
-        shell: >
-                ( rpm --setugids {{ item }}; rpm --setperms {{ item }} )
-                2>&1 1>&2 | grep -v ': No such file or directory$'
-        args:
-            warn: false
-        register: Perm_fixed
-        failed_when: perm_output.stdout|length > 0
-        ignore_errors: true
-        with_items: "{{ perm_output.stdout_lines }}"
 
-      - name: Display error during remediation
-        debug:
-            msg: "{{ item.stdout_lines }}"
-        changed_when: true
-        with_items: "{{ Perm_fixed.results }}"
-        when:
-            - Perm_fixed is changed
-            - item is failed 
+  #- "{{ pkg_list.stdout_lines }}"
+          #- "{{ pkg_list.stdout_lines | default([]) }}"
+          #- "{{ pkg_list.stdout_lines | replace(\"'\",'')  }}"
+          # wantlist=True
+
+
+  #- "{{ pkg_list.stdout_lines | replace(\"'\",'')  }}"
+          #- "{{ pkg_list.stdout_lines | map(attribute='stdout_lines') | list }}"        

@@ -1,19 +1,18 @@
-######################################### USAGE   ##############################
-####    ansible-playbook remediate_v204392_finding.yml -e target=all -kK     ###
-################################################################################
+############################# USAGE   ############################
+####    ansible-playbook V-204392.yml -e target=all -kK        ###
+##################################################################
 ---
 - name: Check and Remediate STIG Finding V-204392
   hosts: "{{ target }}"
-  serial: 1
   become: yes
   tasks:
-      - name: Ensure  empty files exist 
+      - name: Ensure an empty file exist 
         file: 
           path: "{{ item }}"
           state: touch 
         loop:
-          - /tmp/{{ansible_hostname}}_files_perm.txt
-          - /tmp/{{ansible_hostname}}_files_perm_remdtn.txt
+          - /tmp/files_perm.txt
+          - /tmp/files_perm_remdtn.txt
         delegate_to: localhost
 
       - name: Generate list of files
@@ -37,49 +36,48 @@
       - name: Save File Permissions
         copy:
           content: "{{ perm_list.results | map(attribute='stdout' ) | join('\n')  }}"
-          dest: /tmp/{{ansible_hostname}}_files_perm.txt
+          dest: /tmp/files_perm.txt
         delegate_to: localhost
       
       - name: Get packages with incorrect file permissions or ownership
         shell: |
-          #rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
-          rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf | sort -u
+          rpm -Va --nolinkto --nofiledigest --nosize --nomtime --nodigest --nosignature | grep -E '^(.M|.....U|......G)' | tee /dev/stderr | cut -c13- | sed 's/^ //' | xargs rpm -qf --qf='%{name}\n' | sort -u
         register: pkg_list
-
-      #- name: Get packages with incorrect file permissions or ownership
-      #  shell: rpm -qf {{ item }}
-      #  loop: "{{ files.stdout_lines }}"
-      #  register: pkg_list
-
 
       - name: Display output
         debug:
           msg: "{{ pkg_list.stdout_lines }}"
-          #msg: "{{ pkg_list.results | map(attribute='stdout_lines') | list }}"
 
-      - name: Reset file permissions to vendor values
-        shell: rpm --setperms {{ item[1] }} 
-        loop: 
+      - name: Reset file permissionsto vendor values
+        shell: rpm --setperms {{ item }} 
+        loop:
           - "{{ pkg_list.stdout_lines | default([]) }}"
-          
+        register: Perm_fixed
 
-      - name: Reset file ownership to vendor values
-        shell: rpm --setugids {{ item[1] }}
-        loop: 
-          - "{{ pkg_list.stdout_lines | default([]) }}"
-          
+        rpm 
+        rpm --setugids
+        /ownership 
+
+      - name: Display error during remediation
+        debug:
+          msg: "{{ item.stdout_lines }}"
+        changed_when: true
+        with_items: "{{ Perm_fixed.results }}"
+        when:
+          - Perm_fixed is changed
+          - item is failed
 
       - name: Permission on each file after remediation
         shell: ls -l {{ item }}
         loop: "{{ files.stdout_lines }}"
         register: fixed_perm_list
  
-      - name: Display perms after remediation
+      - name: Display perms 
         debug: 
           msg: "{{ fixed_perm_list.results | map(attribute='stdout') }}"
 
       - name: Save Fixed File Permissions
         copy:
           content: "{{ fixed_perm_list.results | map(attribute='stdout' ) | join('\n')  }}"
-          dest: /tmp/{{ansible_hostname}}_files_perm_remdtn.txt
+          dest: /tmp/files_perm_remdtn.txt
         delegate_to: localhost
