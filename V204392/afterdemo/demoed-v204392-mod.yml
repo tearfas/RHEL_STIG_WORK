@@ -1,0 +1,88 @@
+---
+- name: Check and Remediate STIG Finding V-204392
+  hosts: "{{ target }}"
+  #gather_facts: no
+  become: yes
+  serial: 1
+  tasks:
+       - name: Create Empty Files To Store File Details
+         file:
+           path: "{{ item }}"
+           state: touch
+         loop:
+           - /tmp/{{ ansible_fqdn }}_files_perm.txt
+           - /tmp/{{ ansible_fqdn }}_files_perm_remdtn.txt
+         delegate_to: localhost
+
+       - name: Generate List of Files With Incorrect Permission
+         shell: >
+           for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`; do for j in `rpm -qf $i`;do rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i;done;done | awk '{print $1, $2=int(substr($2,4,6))}' | sort -u
+         register: def_perms
+
+       - name: Display Default File Permissions
+         debug:
+           var: def_perms.stdout_lines
+
+       - name: Generate Current File Permissions 
+         shell:
+           cmd: stat -c '%a %n' {{ item.0 }}
+         loop: "{{ def_perms.stdout_lines |  map('split', ' ')  }}" 
+         register: extg_perms
+
+       - name: Display Current Permissions Before Remediation
+         debug:
+           msg: "{{ extg_perms.results | map(attribute='stdout') }}"
+
+       - name: Save File Permissions To a File
+         copy:
+           content: "{{ extg_perms.results | map(attribute='stdout' ) | join('\n')  }}"
+           dest: /tmp/{{ ansible_fqdn }}_files_perm.txt
+         delegate_to: localhost
+
+       - name: Display Only Perm
+         debug: 
+           msg: "{{ item[0] }}"
+         loop: 
+           - "{{ extg_perms.results | map(attribute='stdout') | map('split', ',') }}"
+           
+
+      #  - name: Reset File Permissions/Ownership To Vendor Values
+      #    file:
+      #      path: "{{ item.0 }}"
+      #      mode: 0{{ item.1}}
+      #    when:  ( extg_perms.results | map(attribute='stdout')| int )  >  ( item.1 | int)
+      #    #when: "{{  extg_perms.results | map(attribute='stdout' ) }}  > {{ def_perms.stdout_lines |  map('split', ' ')  }}"
+      #    loop: 
+      #      - "{{ def_perms.stdout_lines | map('split', ' ')  }}"  
+      #      - "{{ extg_perms.results | map(attribute='stdout' ) map('split', ',') }}"
+         
+       - debug:
+           msg: "{{ item.0 }} {{ item.1 }}"
+         loop:
+           - "{{ def_perms.stdout_lines | map('split', ' ')  }}"  
+
+      #  - name: Reset file permissions/ownership to vendor values
+      #   shell: "rpm {{ item[0] }} {{ item[1] }}" 
+      #   changed_when: false
+      #   with_nested:
+      #     - ['--setperms', '--setugids']
+      #     - "{{ pkg_list.stdout_lines | default([]) }}"
+    
+       - name: Get Permission On Each File After Remediation
+         shell:
+           cmd: stat -c '%a %n' {{ item.0 }}
+         loop: "{{ def_perms.stdout_lines | map('split', ' ')  }}" 
+         register: fxd_perm
+
+       - name: Display Permissions After Remediation
+         debug:
+           msg: "{{ fxd_perm.results | map(attribute='stdout') }}"
+
+       - name: Save File Permissions To a File After Remediation
+         copy:
+           content: "{{ fxd_perm.results | map(attribute='stdout' ) | join('\n')  }}"
+           dest: /tmp/{{ ansible_fqdn }}_files_perm_remdtn.txt
+         delegate_to: localhost
+
+      ##echo 123456900 | grep -o '...$'
+      #echo 123456900 | sed 's/.*\(...\)/\1/'
