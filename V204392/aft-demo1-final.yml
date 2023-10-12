@@ -1,0 +1,102 @@
+---
+- name: Check and Remediate STIG Finding V-204392
+  hosts: "{{ target }}"
+  #gather_facts: no
+  ignore_errors: yes
+  become: yes
+  serial: 1
+  tasks:
+    ######################## PRE REMEDIATION    ######################
+       - name: Create Empty Files To Store File Details
+         file:
+           path: "{{ item }}"
+           state: touch
+         loop:
+           - /tmp/{{ ansible_fqdn }}_files_perm.txt
+           - /tmp/{{ ansible_fqdn }}_files_perm_remdtn.txt
+         delegate_to: localhost 
+
+       - name: Generate List of Files With Incorrect Permission
+         shell: >
+           for i in `rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5`; do for j in `rpm -qf $i`;do rpm -ql $j --dump | cut -d " " -f 1,5,6,7 | grep $i;done;done | awk '{print $1, $2=int(substr($2,4,6))}' | sort -u
+         register: def_perms
+
+       - name: Display Default File Permissions
+         debug:
+           var: def_perms.stdout_lines 
+
+       - name: Get Default octal File Permissions Only
+         debug:
+           msg: "{{ item.1 }}"
+         loop: "{{ def_perms.stdout_lines |  map('split', ' ')  }}" 
+         register: def_octal_perm
+
+       - name: Display Default Octal File Permission 
+         debug:
+           msg: "{{ def_octal_perm.results | map(attribute='msg') }}"
+
+       - name: Get File Names Only
+         debug:
+           msg: "{{ item.0 }}"
+         loop: "{{ def_perms.stdout_lines |  map('split', ' ')  }}" 
+         register: file_names
+
+       - name: Display File Names
+         debug:
+           msg: "{{ file_names.results | map(attribute='msg') }}"
+
+       - name: Generate Existing File Permissions 
+         shell:
+           cmd: stat -c '%a %n' {{ item.0 }}
+         loop: "{{ def_perms.stdout_lines |  map('split', ' ')  }}" 
+         register: extg_perms
+
+       - name: Display Existing Permissions Before Remediation
+         debug:
+           msg: "{{ extg_perms.results | map(attribute='stdout') }}" 
+
+       - name: Get Existing Octal File Permissions Only
+         debug: 
+           msg: "{{ item.0 }}"
+         loop: "{{ extg_perms.results | map(attribute='stdout') |  map('split', ' ') }}" 
+         register: extg_octal_perm
+
+       - name: Display Existing Octal File Permissions Only
+         debug:
+           msg: "{{extg_octal_perm }}"
+
+       - name: Save File Permissions To a File
+         copy: 
+           content: "{{ extg_perms.results | map(attribute='stdout' ) | join('\n')  }}"
+           dest: /tmp/{{ ansible_fqdn }}_files_perm.txt
+         delegate_to: localhost
+
+  ########################## REMEDIATION    ######################
+      
+       - name: Reset File Permissions/Ownership To Vendor Values 1
+         shell:
+            cmd: "chmod {{ item[0] }} {{ item[1]}}"
+         when: (item[1] | int ) > ( item[0] | int )
+         loop:
+             #- [ "{{ def_octal_perm.results | map(attribute='msg') | list }},  {{ extg_octal_perm.results | map(attribute='msg' ) | list }}" ]
+             - "{{ extg_octal_perm.results | map(attribute='msg' ) | list }}" 
+             - "{{ file_names.results | map(attribute='msg')  | default([]) }}"
+         
+    
+  ##################### POST REMEDIATION #############################
+
+       - name: Get Permission On Each File After Remediation
+         shell:
+           cmd: stat -c '%a %n' {{ item.0 }}
+         loop: "{{ def_perms.stdout_lines | map('split', ' ')  }}" 
+         register: fxd_perm
+
+       - name: Display Permissions After Remediation
+         debug:
+           msg: "{{ fxd_perm.results | map(attribute='stdout') }}"
+
+       - name: Save File Permissions To a File After Remediation
+         copy:
+           content: "{{ fxd_perm.results | map(attribute='stdout' ) | join('\n')  }}"
+           dest:  /tmp/{{ ansible_fqdn }}_files_perm_remdtn.txt
+         delegate_to: localhost
