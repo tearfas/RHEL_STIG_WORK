@@ -78,11 +78,10 @@
             cmd: "chmod {{ item[0] }} {{ item[1]}}"
          when: (item[1] | int ) > ( item[0] | int )
          loop:
-             #- [ "{{ def_octal_perm.results | map(attribute='msg') | list }},  {{ extg_octal_perm.results | map(attribute='msg' ) | list }}" ]
-             - "{{ extg_octal_perm.results | map(attribute='msg' ) | list }}" 
+             - "{{ def_octal_perm.results | map(attribute='msg') | list }}"              
              - "{{ file_names.results | map(attribute='msg')  | default([]) }}"
-         
-    
+             - "{{ extg_octal_perm.results | map(attribute='msg' ) | list }}"    
+  
   ##################### POST REMEDIATION #############################
 
        - name: Get Permission On Each File After Remediation
