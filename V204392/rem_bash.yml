@@ -37,6 +37,6 @@
 
     - name: Fetch Result Files To Ansible Host
       fetch:
-        src: /tmp/${ansible_fqdn}_def_perms.txt 
+        src: /tmp/${{ ansible_fqdn }}_def_perms.txt 
         dest: "{{ Reslt_dir }}"
         flat: yes
