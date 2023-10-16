@@ -1,1 +1,42 @@
  
+---
+- name: Check and Remediate STIG Finding V-204392
+  hosts: "{{ target }}"
+  become: yes
+  serial: 1
+  vars:
+    Reslt_dir: /tmp/V204392_Results/
+    scrpt_loc: /tmp/v204392-fix.sh
+
+  tasks:
+    ######################## PRE REMEDIATION    ######################
+    - name: Create Directory to Store Results
+      file:
+        path: "{{ Reslt_dir }}"
+        state: directory 
+        mode: 0755
+      delegate_to: localhost 
+
+  ########################## REMEDIATION    ######################
+    - name: Execute Script To fix Vulnerability  
+      script: v204392-fix.sh
+      args:
+        executable: /bin/bash
+        chdir: /tmp/
+        creates: /tmp/v204392-fix.sh
+      register: output
+
+    - debug:
+        var: output
+
+  ##################### POST REMEDIATION #############################
+    - name: Remove Script after Execution
+      file:
+        path: "{{ scrpt_loc }}"
+        state: absent
+
+    - name: Fetch Result Files To Ansible Host
+      fetch:
+        src: /tmp/${ansible_fqdn}_def_perms.txt 
+        dest: "{{ Reslt_dir }}"
+        flat: yes
