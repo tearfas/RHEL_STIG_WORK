@@ -13,7 +13,6 @@ DEF_PERMS="${DEF_PERMS// /:}"
 for  FILELIST in $DEF_PERMS
 do
    IFS=":" read -a arr <<< "$FILELIST"
-   #readarray -d : arr <<< "$FILELIST"
 
     FILENAME=${arr[*]:0:1}
     FDEFPERM=${arr[*]:1:1}
