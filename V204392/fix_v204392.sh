@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#### Remove Any Old Result Files ##########
+rm -f /tmp/"$(hostname -f)"_*
+
 DEF_PERMS=$(for i in $(rpm -Va | grep -E '^.{1}M|^.{5}U|^.{6}G' | cut -d " " -f 4,5); do for j in $(rpm -qf "$i");do rpm -ql "$j" --dump | cut -d " " -f 1,5,6,7 | grep "$i";done;done | awk '{print $1, $2=int(substr($2,3,6))}' | sort -u )
 
 echo "$DEF_PERMS" >> /tmp/"$(hostname -f)_def_perms.txt"
@@ -9,14 +12,14 @@ DEF_PERMS="${DEF_PERMS// /:}"
 
 for  FILELIST in $DEF_PERMS
 do
-
-   readarray -d : arr <<< "$FILELIST"
+   IFS=":" read -a arr <<< "$FILELIST"
+   #readarray -d : arr <<< "$FILELIST"
 
     FILENAME=${arr[*]:0:1}
     FDEFPERM=${arr[*]:1:1}
 
-    #echo file name is "$FILENAME"
-    #echo file Perm is "$FDEFPERM"
+    echo file name is "$FILENAME"
+    echo file Perm is "$FDEFPERM"
 
   if [ -e "$FILENAME" ]; then
         #### Pull The Existing Permissions Before Remediation ####
